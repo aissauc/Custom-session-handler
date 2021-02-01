@@ -16,7 +16,7 @@ class AppSessionHandler extends SessionHandler {
 	private $sessionCipherMode = MCRYPT_MODE_ECB;
 	private $sessionCipherKey = 'WYCRYPT0K3Y2020';
 
-	private $ttl = 1;
+	private $ttl = 30;
 
 
 	public function __construct() {
@@ -35,7 +35,7 @@ class AppSessionHandler extends SessionHandler {
 			$this->sessionHTTPOnly
 		);
 
-		session_set_save_handler($this,true);
+		session_set_save_handler($this, true);
 	}
 
 
@@ -79,6 +79,7 @@ class AppSessionHandler extends SessionHandler {
 	private function checkSessionValidity() {
 		if ((time() - $this->sessionStartTime) > ($this->ttl * 60)) {
 			$this->renewSession();
+			$this->generateFingerPrint();
 		}
 		return true;
 	}
@@ -88,9 +89,42 @@ class AppSessionHandler extends SessionHandler {
 		return session_regenerate_id(true);
 	}
 
+	public function killSession() {
+		
+		session_unset();
+
+		setcookie(
+				$this->sessionName, '',  time() - 1000,
+				$this->sessionPath, $this->sessionDomain,
+				$this->sessionSSL, $this->sessionHTTPOnly
+		);
+
+		session_destroy();
+
+	}
+
+	private function generateFingerPrint() {
+		$userAgent = $_SERVER['HTTP_USER_AGENT'];
+		$this->cipherKey = mcrypt_create_iv(16);
+		$sessionId = session_id();
+		$this->fingerPrint = md5($userAgent . $this->cipherKey . $sessionId);
+	}
+
+	public function isValidFingerPrint() {
+		if (!isset($this->fingerPrint)) {
+			$this->generateFingerPrint();	
+		}
+
+		$fingerPrint = md5($_SERVER['HTTP_USER_AGENT'] . $this->cipherKey . session_id());
+
+		if ($fingerPrint === $this->fingerPrint) {
+			return true;
+		}
+		return false;
+
+	}
+
 }
 
 $session = new AppSessionHandler();
 $session->start();
-
-echo $session->name = 'hello beatufil people';
